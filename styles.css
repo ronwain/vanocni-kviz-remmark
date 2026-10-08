@@ -21,5 +21,5 @@ form { display:grid; gap:1rem; max-width:32rem; }
 .admin-grid { display:grid; grid-template-columns:1fr; gap:2rem; }.admin-grid h2 { color:var(--evergreen); margin:0 0 .8rem; }
 .player-list { display:grid; gap:.75rem; }.player { padding:1rem; border:1px solid var(--line); border-radius:.75rem; background:#fffdf9; }.player strong,.player code { display:block; }.player code { margin-top:.35rem; overflow-wrap:anywhere; font-size:.78rem; }
 .station-links { display:grid; gap:.6rem; }.station-links a { color:var(--wine); overflow-wrap:anywhere; }
-.muted { color:#746e68; }.copy { margin-top:.6rem; font-size:.85rem; padding:.45rem .7rem; }
+.muted { color:#746e68; }.player-actions { display:flex; flex-wrap:wrap; gap:.5rem; margin-top:.6rem; }.copy,.delete { font-size:.85rem; padding:.45rem .7rem; }.delete { color:#a5202e; background:#fff4f4; border-color:#efb9bf; }
 @media (min-width:760px) { .admin-grid { grid-template-columns: .8fr 1.2fr; } }
