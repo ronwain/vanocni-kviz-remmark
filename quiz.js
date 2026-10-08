@@ -13,8 +13,7 @@ function escapeHtml(value) { const el = document.createElement('div'); el.textCo
 async function rpc(name, args) { const { data, error } = await db.rpc(name, args); if (error) throw error; return data; }
 async function boot() {
   if (!playerToken) { heading.textContent = 'Nejdřív osobní QR kód'; description.textContent = 'Naskenujte svůj osobní QR kód. Do tohoto telefonu se bezpečně uloží vaše přezdívka pro celé hraní.'; game.innerHTML = '<p class="notice">Potom můžete u jednotlivých stanovišť načítat společné QR kódy.</p>'; return; }
-  try { const player = await rpc('start_quiz', { p_qr_token: playerToken }); description.textContent = `Hraje ${player[0].nickname}.`; } catch (error) { heading.textContent = 'Tento QR kód už není platný'; description.textContent = error.message; return; }
-  if (!station) { heading.textContent = 'Jste připraveni'; game.innerHTML = '<p class="notice">Teď načtěte QR kód prvního stanoviště.</p>'; return; }
+  try { const player = await rpc('start_quiz', { p_qr_token: playerToken }); description.textContent = `Hraje ${player[0].nickname}.`; if (!station) { heading.textContent = `Vítej, ${player[0].nickname}!`; description.textContent = 'Úspěšně jste zapsáni do hry.'; game.innerHTML = '<p class="notice">Teď načti QR kód prvního stanoviště.</p>'; return; } } catch (error) { heading.textContent = 'Tento QR kód už není platný'; description.textContent = error.message; return; }
   heading.textContent = 'Stanoviště';
   try { const questions = await rpc('get_station_questions', { p_qr_token: playerToken, p_station_slug: station }); if (!questions.length) { game.innerHTML = '<p class="notice">Otázky pro toto stanoviště ještě nejsou vložené.</p>'; return; } showQuestion(questions, 0); } catch (error) { game.innerHTML = `<p class="error">${escapeHtml(error.message)}</p>`; }
 }
