@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="cs">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex,nofollow" />
+    <title>Tabule s výsledky | Vánoční kvíz</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body class="admin-page">
+    <main class="shell admin-shell">
+      <p class="eyebrow">Vánoční kvíz</p>
+      <h1>Tabule s výsledky</h1>
+      <p class="lead">Průběžné body a pořadí soutěžících.</p>
+      <div id="dashboard" class="card" aria-live="polite"><p class="muted">Načítám přehled…</p></div>
+      <p><a class="button" href="admin.html">Zpět do administrace</a></p>
+    </main>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="config.js"></script>
+    <script src="dashboard.js"></script>
+  </body>
+</html>
