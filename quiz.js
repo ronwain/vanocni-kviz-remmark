@@ -13,14 +13,14 @@ let deviceId = localStorage.getItem('vanocni-device-id');
 if (!deviceId) { deviceId = crypto.randomUUID(); localStorage.setItem('vanocni-device-id', deviceId); }
 function escapeHtml(value) { const el = document.createElement('div'); el.textContent = value ?? ''; return el.innerHTML; }
 async function rpc(name, args) { const { data, error } = await db.rpc(name, args); if (error) throw error; return data; }
-function setScore(points) { scoreValue.textContent = Number(points || 0); }
-async function loadScore() { const score = await rpc('get_player_score', { p_qr_token: playerToken }); setScore(score[0]?.total_points); }
+function setScore(points) { scoreValue.textContent = Number(points || 0); }async function loadScore() { const score = await rpc('get_player_score', { p_qr_token: playerToken }); setScore(score[0]?.total_points); }
+async function loadProgress() { const progress = await rpc('get_player_progress', { p_qr_token: playerToken }); return progress[0]; }
 async function activatePlayer() { const player = await rpc('activate_player', { p_qr_token: playerToken, p_device_id: deviceId }); if (tokenFromUrl) localStorage.setItem('vanocni-player-token', tokenFromUrl); return player; }
 async function boot() {
   if (!playerToken) { scoreValue.closest('.score-counter').hidden = true; heading.textContent = 'Nejdřív osobní QR kód'; description.textContent = 'Naskenujte svůj osobní QR kód. Do tohoto telefonu se bezpečně uloží vaše přezdívka pro celé hraní.'; game.innerHTML = '<p class="notice">Potom můžete u jednotlivých stanovišť načítat společné QR kódy.</p>'; return; }
   let player;
   try { player = await activatePlayer(); await loadScore(); description.textContent = `Hraje ${player[0].nickname}.`; } catch (error) { scoreValue.closest('.score-counter').hidden = true; heading.textContent = 'Tento QR kód už není platný'; description.textContent = error.message; return; }
-  if (!station) { heading.textContent = `Vítej, ${player[0].nickname}!`; description.textContent = 'Úspěšně jste zapsáni do hry.'; game.innerHTML = '<p class="notice">Teď načti QR kód prvního stanoviště.</p>'; return; }
+  if (!station) { const progress = await loadProgress(); heading.textContent = `Vítej, ${player[0].nickname}!`; description.textContent = 'Úspěšně jste zapsáni do hry.'; game.innerHTML = `<section class="stats" aria-label="Tvůj postup ve hře"><article><strong>${progress.completed_stations}</strong><span>splněná stanoviště</span></article><article><strong>${progress.total_points}</strong><span>bodů</span></article><article><strong>${progress.remaining_stations}</strong><span>ještě neobjevená</span></article></section><p class="notice">Teď načti QR kód prvního stanoviště.</p>`; return; }
   if (station === 'stanoviste-4') { showNumericGuess(); return; }
   heading.textContent = 'Stanoviště';
   try { const questions = await rpc('get_station_questions', { p_qr_token: playerToken, p_station_slug: station }); if (!questions.length) { game.innerHTML = '<p class="notice">Otázky pro toto stanoviště ještě nejsou vložené.</p>'; return; } showQuestion(questions, 0); } catch (error) { game.innerHTML = `<p class="error">${escapeHtml(error.message)}</p>`; }
