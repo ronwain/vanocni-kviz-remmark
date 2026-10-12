@@ -18,7 +18,8 @@ async function loadScore() { const score = await rpc('get_player_score', { p_qr_
 async function activatePlayer() { const player = await rpc('activate_player', { p_qr_token: playerToken, p_device_id: deviceId }); if (tokenFromUrl) localStorage.setItem('vanocni-player-token', tokenFromUrl); return player; }
 async function boot() {
   if (!playerToken) { scoreValue.closest('.score-counter').hidden = true; heading.textContent = 'Nejdřív osobní QR kód'; description.textContent = 'Naskenujte svůj osobní QR kód. Do tohoto telefonu se bezpečně uloží vaše přezdívka pro celé hraní.'; game.innerHTML = '<p class="notice">Potom můžete u jednotlivých stanovišť načítat společné QR kódy.</p>'; return; }
-  try { const player = await activatePlayer(); await loadScore(); description.textContent = `Hraje ${player[0].nickname}.`; } catch (error) { scoreValue.closest('.score-counter').hidden = true; heading.textContent = 'Tento QR kód už není platný'; description.textContent = error.message; return; }
+  let player;
+  try { player = await activatePlayer(); await loadScore(); description.textContent = `Hraje ${player[0].nickname}.`; } catch (error) { scoreValue.closest('.score-counter').hidden = true; heading.textContent = 'Tento QR kód už není platný'; description.textContent = error.message; return; }
   if (!station) { heading.textContent = `Vítej, ${player[0].nickname}!`; description.textContent = 'Úspěšně jste zapsáni do hry.'; game.innerHTML = '<p class="notice">Teď načti QR kód prvního stanoviště.</p>'; return; }
   if (station === 'stanoviste-4') { showNumericGuess(); return; }
   heading.textContent = 'Stanoviště';
