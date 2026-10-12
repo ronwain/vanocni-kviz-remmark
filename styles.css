@@ -36,3 +36,9 @@ form { display:grid; gap:1rem; max-width:32rem; }
 .rank { color:var(--wine); font-weight:800; }
 @media (min-width:760px) { .admin-grid { grid-template-columns: .8fr 1.2fr; } }
 @media (max-width:420px) { .score-counter { top:.6rem; right:.6rem; } }
+.leaderboard-wrap { margin-top:1.2rem; overflow-x:auto; border:1px solid var(--line); border-radius:.75rem; background:#fffdf9; }
+.leaderboard-table { width:100%; min-width:43rem; border-collapse:collapse; }
+.leaderboard-table th,.leaderboard-table td { padding:.75rem .65rem; border-bottom:1px solid var(--line); text-align:center; white-space:nowrap; }
+.leaderboard-table thead th { background:#f7f0e4; color:var(--evergreen); font-size:.78rem; }
+.leaderboard-table tbody th { text-align:left; }
+.leaderboard-table tbody tr:last-child th,.leaderboard-table tbody tr:last-child td { border-bottom:0; }
