@@ -26,7 +26,7 @@ form { display:grid; gap:1rem; max-width:32rem; }
 .station-links { display:grid; gap:.6rem; }.station-links a { color:var(--wine); overflow-wrap:anywhere; }
 .muted { color:#746e68; }.player-actions { display:flex; flex-wrap:wrap; gap:.5rem; margin-top:.6rem; }.copy,.delete { font-size:.85rem; padding:.45rem .7rem; }.delete { color:#a5202e; background:#fff4f4; border-color:#efb9bf; }
 .dashboard-link { display:inline-block; text-align:center; }
-.stats { display:grid; grid-template-columns:repeat(3,1fr); gap:.7rem; }
+.stats { display:grid; grid-template-columns:repeat(2,1fr); gap:.7rem; }
 .stats article { padding:.85rem; border-radius:.75rem; background:#f7f0e4; text-align:center; }
 .stats strong,.stats span { display:block; }
 .stats strong { color:var(--wine); font-size:1.45rem; }
