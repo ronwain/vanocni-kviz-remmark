@@ -63,24 +63,44 @@ function loadQrLibrary() {
   if (!qrLibrary) qrLibrary = import('https://cdn.jsdelivr.net/npm/qr-scanner@1.4.2/qr-scanner.min.js').then(module => module.default).catch(error => { qrLibrary = null; throw error; });
   return qrLibrary;
 }
+function cameraScanRegion(video) {
+  const width = video.videoWidth || 1280;
+  const height = video.videoHeight || 720;
+  const scale = Math.min(1, 1024 / Math.max(width, height));
+  return { x: 0, y: 0, width, height, downScaledWidth: Math.round(width * scale), downScaledHeight: Math.round(height * scale) };
+}
 async function openQrScanner(mode) {
   if (closeCurrentScanner) return;
   const dialog = document.createElement('dialog');
   dialog.setAttribute('aria-labelledby', 'qr-title');
   dialog.style.cssText = 'width:min(94vw,32rem);max-height:90vh;overflow:auto;border:1px solid var(--line);border-radius:1rem;padding:1.25rem;color:var(--ink);background:white;';
-  dialog.innerHTML = `<h2 id="qr-title">${mode === 'player' ? 'Načíst osobní QR' : 'Načíst QR stanoviště'}</h2><p>Namiř zadní kameru na QR kód. Fotografii zpracuje přímo tvůj prohlížeč.</p><video playsinline muted style="display:none;width:100%;max-height:45vh;border-radius:.75rem;object-fit:cover" aria-label="Náhled kamery"></video><p role="status" id="qr-status">Spusť kameru nebo vyber fotografii QR kódu.</p><div style="display:grid;gap:.75rem"><button type="button" class="primary" id="qr-camera">Spustit kameru</button><label>Vyfotit nebo vybrat QR kód<input type="file" accept="image/*" capture="environment" id="qr-image"></label><button type="button" id="qr-close">Zavřít</button></div>`;
+  dialog.innerHTML = `<h2 id="qr-title">${mode === 'player' ? 'Načíst osobní QR' : 'Načíst QR stanoviště'}</h2><p>Namiř zadní kameru na celý QR kód a chvíli drž telefon v klidu. Obraz zůstává ve tvém prohlížeči.</p><div style="position:relative"><video playsinline webkit-playsinline muted autoplay style="display:none;width:100%;max-height:45vh;border-radius:.75rem;object-fit:contain;background:#002c3d" aria-label="Náhled kamery"></video></div><p role="status" id="qr-status">Spusť kameru nebo vyber fotografii QR kódu.</p><div style="display:grid;gap:.75rem"><button type="button" class="primary" id="qr-camera">Spustit kameru</button><label id="qr-camera-choice" hidden>Vybrat kameru<select id="qr-camera-select" style="width:100%;padding:.8rem;border:1px solid var(--line);border-radius:.65rem;font:inherit"></select></label><label>Vyfotit nebo vybrat QR kód<input type="file" accept="image/*" capture="environment" id="qr-image"></label><button type="button" id="qr-close">Zavřít</button></div>`;
   document.body.append(dialog);
   const video = dialog.querySelector('video');
   const status = dialog.querySelector('#qr-status');
   const cameraButton = dialog.querySelector('#qr-camera');
   const imageInput = dialog.querySelector('#qr-image');
+  const cameraChoice = dialog.querySelector('#qr-camera-choice');
+  const cameraSelect = dialog.querySelector('#qr-camera-select');
   let scanner;
   let closed = false;
   let navigating = false;
   let imageBusy = false;
+  let frameTimer;
+  let frameWorker;
+  let frameRun = 0;
+  let lastRecognizedAt = 0;
+  let cameraStartedAt = 0;
+  const stopFrameReader = () => {
+    frameRun++;
+    clearTimeout(frameTimer);
+    frameWorker?.terminate();
+    frameWorker = null;
+  };
   const close = () => {
     if (closed) return;
     closed = true;
+    stopFrameReader();
     scanner?.destroy();
     dialog.close();
     dialog.remove();
@@ -89,12 +109,73 @@ async function openQrScanner(mode) {
   closeCurrentScanner = close;
   const accept = result => {
     if (closed || navigating || imageBusy) return;
+    lastRecognizedAt = Date.now();
     try {
-      const target = parseQuizQr(result.data, mode);
+      const target = parseQuizQr(typeof result === 'string' ? result : result.data, mode);
       navigating = true;
       close();
       location.assign(target);
     } catch (error) { status.textContent = error.message; }
+  };
+  // Read complete frames on a timer as well: some mobile browsers stop firing
+  // video-frame callbacks even while the camera preview continues to play.
+  const startFrameReader = async QrScanner => {
+    stopFrameReader();
+    const run = frameRun;
+    try {
+      const module = await import('https://cdn.jsdelivr.net/npm/qr-scanner@1.4.2/qr-scanner-worker.min.js');
+      const worker = module.createWorker();
+      if (closed || run !== frameRun) { worker.terminate(); return; }
+      frameWorker = worker;
+      const readFrame = async () => {
+        if (closed || run !== frameRun || imageBusy || navigating) return;
+        if (!document.hidden && video.readyState >= 2 && video.videoWidth > 0 && !video.paused) {
+          try {
+            const result = await QrScanner.scanImage(video, { qrEngine: worker, scanRegion: cameraScanRegion(video), returnDetailedScanResult: true });
+            if (!closed && run === frameRun) accept(result);
+          } catch (error) {
+            if (!closed && run === frameRun && Date.now() - Math.max(cameraStartedAt, lastRecognizedAt) > 8000) {
+              status.textContent = error === QrScanner.NO_QR_CODE_FOUND
+                ? 'QR zatím není přečtený. Oddal telefon, nech zaostřit a ukaž celý kód. Můžeš také vybrat jinou kameru nebo fotografii.'
+                : 'Čtení obrazu se nedaří. Zkus spustit kameru znovu, nebo vyfoť QR kód tlačítkem níže.';
+            }
+          }
+        }
+        if (!closed && run === frameRun) frameTimer = setTimeout(readFrame, 650);
+      };
+      readFrame();
+    } catch (error) {
+      console.warn('Záložní čtení QR není dostupné:', error);
+      if (!closed && run === frameRun) status.textContent = 'Pokud QR kód nereaguje, vyber jinou kameru nebo použij fotografii kódu níže.';
+    }
+  };
+  const focusCamera = async () => {
+    const track = video.srcObject?.getVideoTracks()[0];
+    try {
+      if (track?.getCapabilities?.().focusMode?.includes('continuous')) await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
+    } catch { /* Continuous focus is optional on older cameras. */ }
+  };
+  const cameraReady = async QrScanner => {
+    cameraStartedAt = Date.now();
+    lastRecognizedAt = 0;
+    status.textContent = 'Čtu celý záběr. Ukaž celý QR kód a drž telefon chvíli v klidu.';
+    cameraButton.textContent = 'Spustit kameru znovu';
+    cameraButton.disabled = false;
+    await focusCamera();
+    if (!closed) startFrameReader(QrScanner);
+    try {
+      const cameras = await QrScanner.listCameras(false);
+      if (closed) return;
+      const selectedId = video.srcObject?.getVideoTracks()[0]?.getSettings?.().deviceId;
+      cameraSelect.replaceChildren(...cameras.map((camera, index) => {
+        const option = document.createElement('option');
+        option.value = camera.id;
+        option.textContent = camera.label || `Kamera ${index + 1}`;
+        option.selected = camera.id === selectedId;
+        return option;
+      }));
+      cameraChoice.hidden = cameras.length < 2;
+    } catch { cameraChoice.hidden = true; }
   };
   dialog.addEventListener('cancel', event => { event.preventDefault(); close(); });
   dialog.querySelector('#qr-close').addEventListener('click', close);
@@ -105,14 +186,17 @@ async function openQrScanner(mode) {
     try {
       const QrScanner = await loadQrLibrary();
       if (closed) return;
-      if (!scanner) scanner = new QrScanner(video, accept, { preferredCamera: 'environment', maxScansPerSecond: 8, returnDetailedScanResult: true });
+      stopFrameReader();
+      if (scanner) await scanner.pause(true);
+      else scanner = new QrScanner(video, accept, { preferredCamera: cameraSelect.value || 'environment', maxScansPerSecond: 3, calculateScanRegion: cameraScanRegion, highlightScanRegion: true, highlightCodeOutline: true, returnDetailedScanResult: true });
+      scanner.setInversionMode('both');
       video.style.display = 'block';
       await scanner.start();
       if (closed) { scanner.destroy(); return; }
-      status.textContent = 'Namiř kameru na QR kód.';
-      cameraButton.textContent = 'Kamera je zapnutá';
+      await cameraReady(QrScanner);
     } catch {
       if (closed) return;
+      stopFrameReader();
       scanner?.stop();
       video.style.display = 'none';
       status.textContent = 'Kameru se nepodařilo spustit. Povol k ní přístup, nebo použij fotografii QR kódu níže.';
@@ -120,12 +204,25 @@ async function openQrScanner(mode) {
       cameraButton.textContent = 'Zkusit kameru znovu';
     }
   });
+  cameraSelect.addEventListener('change', async () => {
+    if (!scanner || closed) return;
+    cameraSelect.disabled = true;
+    stopFrameReader();
+    try {
+      status.textContent = 'Přepínám kameru…';
+      await scanner.setCamera(cameraSelect.value);
+      if (!closed) await cameraReady(await loadQrLibrary());
+    } catch {
+      if (!closed) status.textContent = 'Tuto kameru se nepodařilo zapnout. Vyber jinou nebo použij fotografii QR.';
+    } finally { cameraSelect.disabled = false; }
+  });
   imageInput.addEventListener('change', async () => {
     const file = imageInput.files?.[0];
     if (!file || imageBusy) return;
     imageBusy = true;
+    stopFrameReader();
     scanner?.stop();
-    cameraButton.disabled = false;
+    cameraButton.disabled = true;
     cameraButton.textContent = 'Spustit kameru';
     imageInput.disabled = true;
     status.textContent = 'Čtu QR kód z fotografie…';
@@ -136,7 +233,7 @@ async function openQrScanner(mode) {
       imageBusy = false;
       accept(result);
     } catch { if (!closed) status.textContent = 'QR kód se nepodařilo přečíst. Vyber ostřejší fotografii s celým QR kódem.'; }
-    finally { imageBusy = false; imageInput.disabled = false; imageInput.value = ''; }
+    finally { imageBusy = false; imageInput.disabled = false; imageInput.value = ''; cameraButton.disabled = false; }
   });
 }
 game.addEventListener('click', event => {
