@@ -19,13 +19,45 @@ function escapeHtml(value) { const el = document.createElement('div'); el.textCo
 async function rpc(name, args) { const { data, error } = await db.rpc(name, args); if (error) throw error; return data; }
 function setScore(points) { scoreValue.textContent = Number(points || 0); }async function loadScore() { const score = await rpc('get_player_score', { p_qr_token: playerToken }); setScore(score[0]?.total_points); }
 async function loadProgress() { const progress = await rpc('get_player_progress', { p_qr_token: playerToken }); return progress[0]; }
+function isGameComplete(progress) {
+  return progress?.remaining_stations != null && Number(progress.remaining_stations) === 0 && Number(progress.completed_stations) > 0;
+}
+function progressStats(progress) {
+  return `<section class="stats" aria-label="Tvůj postup ve hře"><article><strong>${Number(progress.completed_stations)}</strong><span>splněná stanoviště</span></article><article><strong>${Number(progress.total_points)}</strong><span>bodů</span></article><article><strong>${Number(progress.remaining_stations)}</strong><span>zbývající stanoviště</span></article></section>`;
+}
+function showGameComplete(progress) {
+  setScore(progress.total_points);
+  heading.textContent = 'Máš hotovo!';
+  description.textContent = 'Všechna stanoviště máš objevená a na všechny otázky je odpovězeno.';
+  const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  const celebration = reducedMotion
+    ? '<span aria-hidden="true" style="display:block;font-size:5rem;margin:1rem 0">🎁</span>'
+    : '<img src="celebration.gif" alt="" width="360" height="240" style="display:block;width:min(100%,360px);height:auto;margin:0 auto 1rem;border-radius:1rem">';
+  game.innerHTML = `<section aria-labelledby="game-complete-title" style="text-align:center">${celebration}<h2 id="game-complete-title" style="margin:.5rem 0;color:var(--evergreen)">Vánoční pátrání je u konce. Gratulujeme!</h2><p style="line-height:1.6">Tvé odpovědi jsou uložené. Děkujeme za hru a přejeme krásné Vánoce!</p></section>${progressStats(progress)}`;
+}
+async function checkGameComplete() {
+  try {
+    const progress = await loadProgress();
+    if (isGameComplete(progress)) { showGameComplete(progress); return true; }
+  } catch {
+    // Odpověď už je uložená. Při výpadku přehledu ponecháme potvrzení stanoviště.
+  }
+  return false;
+}
 async function activatePlayer() { const player = await rpc('activate_player', { p_qr_token: playerToken, p_device_id: deviceId }); if (tokenFromUrl) writeStorage('vanocni-player-token', tokenFromUrl); return player; }
 async function boot() {
   if (storageUnavailable) { scoreValue.closest('.score-counter').hidden = true; heading.textContent = 'Otevři hru v běžném prohlížeči'; description.textContent = 'Tento prohlížeč nedovoluje uložit přihlášení. Otevři osobní QR odkaz v běžném Safari nebo Chromu a povol ukládání dat webu.'; return; }
   if (!playerToken) { scoreValue.closest('.score-counter').hidden = true; heading.textContent = 'Nejdřív osobní QR kód'; description.textContent = 'Naskenujte svůj osobní QR kód. Do tohoto telefonu se bezpečně uloží vaše přezdívka pro celé hraní.'; game.innerHTML = '<p class="notice">Otevři osobní odkaz v běžném Safari nebo Chromu. Stanoviště potom načítej tlačítkem přímo ve hře, aby přihlášení zůstalo zachované.</p><button type="button" class="primary" data-scan-mode="player">Načíst osobní QR</button>'; return; }
   let player;
   try { player = await activatePlayer(); await loadScore(); description.textContent = `Hraje ${player[0].nickname}.`; } catch (error) { scoreValue.closest('.score-counter').hidden = true; heading.textContent = 'Tento QR kód už není platný'; description.textContent = error.message; return; }
-  if (!station) { const progress = await loadProgress(); heading.textContent = `Vítej, ${player[0].nickname}!`; description.textContent = 'Úspěšně jste zapsáni do hry.'; game.innerHTML = `<section class="stats" aria-label="Tvůj postup ve hře"><article><strong>${progress.completed_stations}</strong><span>splněná stanoviště</span></article><article><strong>${progress.total_points}</strong><span>bodů</span></article><article><strong>${progress.remaining_stations}</strong><span>ještě neobjevená</span></article></section><p class="notice">Hledej QR kód s otázkami. Načti ho tlačítkem přímo tady ve hře.</p><button type="button" class="primary" data-scan-mode="station">Načíst QR stanoviště</button>`; return; }
+  const progress = await loadProgress();
+  if (isGameComplete(progress)) { showGameComplete(progress); return; }
+  if (!station) {
+    heading.textContent = `Vítej, ${player[0].nickname}!`;
+    description.textContent = 'Úspěšně jste zapsáni do hry.';
+    game.innerHTML = `${progressStats(progress)}<p class="notice">Hledej QR kód s otázkami. Načti ho tlačítkem přímo tady ve hře.</p><button type="button" class="primary" data-scan-mode="station">Načíst QR stanoviště</button>`;
+    return;
+  }
   if (station === 'stanoviste-4') { showNumericGuess(); return; }
   heading.textContent = 'Stanoviště';
   try { const questions = await rpc('get_station_questions', { p_qr_token: playerToken, p_station_slug: station }); if (!questions.length) { game.innerHTML = '<p class="notice">Otázky pro toto stanoviště ještě nejsou vložené.</p>'; return; } showQuestion(questions, 0); } catch (error) { game.innerHTML = `<p class="error">${escapeHtml(error.message)}</p>`; }
@@ -33,12 +65,12 @@ async function boot() {
 function showNumericGuess() {
   heading.textContent = 'Finále – číselný tip'; description.textContent = 'Tipni si a získej až tři body.';
   game.innerHTML = '<p class="question">Kolik minut má film Sám doma?</p><p class="muted">Zapiš celé číslo od 1 do 500. Přesný tip má 3 body, rozdíl do 2 minut 2 body a do 5 minut 1 bod.</p><form id="numeric-guess"><label>Tvůj tip v minutách<input name="guess" type="number" min="1" max="500" required inputmode="numeric"></label><button class="primary">Potvrdit tip</button></form>';
-  game.querySelector('#numeric-guess').addEventListener('submit', async (event) => { event.preventDefault(); const form = event.currentTarget; const guess = Number(new FormData(form).get('guess')); form.querySelector('button').disabled = true; try { const result = await rpc('submit_numeric_guess', { p_qr_token: playerToken, p_guess: guess }); const outcome = result[0]; setScore(outcome.total_points); game.innerHTML = `<p class="success">Tip je uložený.</p><p>Za finále získáváš ${outcome.points_awarded} ${outcome.points_awarded === 1 ? 'bod' : outcome.points_awarded < 5 ? 'body' : 'bodů'}.</p><p>Celkem máte ${outcome.total_points} bodů.</p><div class="station-complete"><strong>Stanoviště 4 je dokončeno.</strong><span>Gratulujeme, došli jste do cíle.</span></div><button class="primary">Zpět na úvod</button><button type="button" data-scan-mode="station">Načíst další stanoviště</button>`; game.querySelector('button').addEventListener('click', () => { location.href = location.pathname; }); } catch (error) { game.innerHTML = `<p class="error">${escapeHtml(error.message)}</p>`; } });
+  game.querySelector('#numeric-guess').addEventListener('submit', async (event) => { event.preventDefault(); const form = event.currentTarget; const guess = Number(new FormData(form).get('guess')); form.querySelector('button').disabled = true; try { const result = await rpc('submit_numeric_guess', { p_qr_token: playerToken, p_guess: guess }); const outcome = result[0]; setScore(outcome.total_points); if (await checkGameComplete()) return; game.innerHTML = `<p class="success">Tip je uložený.</p><p>Za finále získáváš ${outcome.points_awarded} ${outcome.points_awarded === 1 ? 'bod' : outcome.points_awarded < 5 ? 'body' : 'bodů'}.</p><p>Celkem máte ${outcome.total_points} bodů.</p><div class="station-complete"><strong>Stanoviště 4 je dokončeno.</strong><span>Tip je uložený. Pokud ti ještě něco zbývá, pokračuj na další stanoviště.</span></div><button class="primary">Zpět na úvod</button><button type="button" data-scan-mode="station">Načíst další stanoviště</button>`; game.querySelector('button').addEventListener('click', () => { location.href = location.pathname; }); } catch (error) { game.innerHTML = `<p class="error">${escapeHtml(error.message)}</p>`; } });
 }
 function showQuestion(questions, index) {
   const q = questions[index]; const image = q.image_url ? `<img class="question-image" src="${escapeHtml(q.image_url)}" alt="Ilustrační obrázek k otázce">` : '';
   game.innerHTML = `<p class="muted">Otázka ${index + 1} z ${questions.length}</p>${image}<p class="question">${escapeHtml(q.question_text)}</p><div class="options">${q.answer_options.map((answer, answerIndex) => `<button data-answer="${answerIndex + 1}">${escapeHtml(answer)}</button>`).join('')}</div>`;
-  game.querySelectorAll('[data-answer]').forEach(button => button.addEventListener('click', async () => { game.querySelectorAll('button').forEach(item => item.disabled = true); try { const result = await rpc('submit_answer', { p_qr_token: playerToken, p_question_id: q.id, p_selected_option: Number(button.dataset.answer) }); const good = result[0].is_correct; const finished = index + 1 === questions.length; const stationName = station.replace('stanoviste-', 'Stanoviště '); setScore(result[0].total_points); game.innerHTML = `<p class="${good ? 'success' : 'error'}">${good ? 'Správně!' : 'Tentokrát ne.'}</p><p>Celkem máte ${result[0].total_points} bodů.</p>${finished ? `<div class="station-complete"><strong>${escapeHtml(stationName)} je dokončeno.</strong><span>Můžeš pátrat po dalším stanovišti.</span></div>` : ''}<button class="primary">${finished ? 'Zpět na úvod' : 'Další otázka'}</button>${finished ? '<button type="button" data-scan-mode="station">Načíst další stanoviště</button>' : ''}`; game.querySelector('button').addEventListener('click', () => finished ? (location.href = location.pathname) : showQuestion(questions, index + 1)); } catch (error) { game.innerHTML = `<p class="error">${escapeHtml(error.message)}</p>`; } }));
+  game.querySelectorAll('[data-answer]').forEach(button => button.addEventListener('click', async () => { game.querySelectorAll('button').forEach(item => item.disabled = true); try { const result = await rpc('submit_answer', { p_qr_token: playerToken, p_question_id: q.id, p_selected_option: Number(button.dataset.answer) }); const good = result[0].is_correct; const finished = index + 1 === questions.length; const stationName = station.replace('stanoviste-', 'Stanoviště '); setScore(result[0].total_points); if (finished && await checkGameComplete()) return; game.innerHTML = `<p class="${good ? 'success' : 'error'}">${good ? 'Správně!' : 'Tentokrát ne.'}</p><p>Celkem máte ${result[0].total_points} bodů.</p>${finished ? `<div class="station-complete"><strong>${escapeHtml(stationName)} je dokončeno.</strong><span>Můžeš pátrat po dalším stanovišti.</span></div>` : ''}<button class="primary">${finished ? 'Zpět na úvod' : 'Další otázka'}</button>${finished ? '<button type="button" data-scan-mode="station">Načíst další stanoviště</button>' : ''}`; game.querySelector('button').addEventListener('click', () => finished ? (location.href = location.pathname) : showQuestion(questions, index + 1)); } catch (error) { game.innerHTML = `<p class="error">${escapeHtml(error.message)}</p>`; } }));
 }
 function parseQuizQr(value, mode) {
   const url = new URL(value);
