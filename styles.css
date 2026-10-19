@@ -30,3 +30,25 @@ form { display:grid; gap:1rem; max-width:32rem; }
 .dashboard-link { display:inline-block; text-align:center; }.stats { display:grid; grid-template-columns:repeat(2,1fr); gap:.7rem; }.stats article { padding:.85rem; border-radius:.75rem; background:#e8f1f3; text-align:center; }.stats strong,.stats span { display:block; }.stats strong { color:var(--wine); font-size:1.45rem; }.stats span { color:var(--muted); font-size:.8rem; }.leaderboard-wrap { margin-top:1.2rem; overflow-x:auto; border:1px solid var(--line); border-radius:.75rem; background:#fff; }.leaderboard-table { width:100%; min-width:43rem; border-collapse:collapse; }.leaderboard-table th,.leaderboard-table td { padding:.75rem .65rem; border-bottom:1px solid var(--line); text-align:center; white-space:nowrap; }.leaderboard-table thead th { background:var(--evergreen); color:#fff; font-size:.78rem; }.leaderboard-table tbody th { text-align:left; }.leaderboard-table tbody tr:last-child th,.leaderboard-table tbody tr:last-child td { border-bottom:0; }.rank { color:var(--wine); font-weight:800; }
 @media (min-width:760px) { .admin-grid { grid-template-columns: .8fr 1.2fr; } }
 @media (max-width:420px) { .score-counter { top:.6rem; right:.6rem; } }
+
+/* Vánoční krajina pro hráčskou aplikaci, společná pro úvod i otázky. */
+.quiz-page { position:relative; isolation:isolate; min-height:100svh; background:var(--evergreen); }
+.quiz-page::before { content:""; position:fixed; z-index:-1; inset:0; pointer-events:none; background:linear-gradient(180deg,rgba(0,44,61,.16),rgba(0,44,61,0) 65%),url("christmas-pixel.webp") center bottom / cover no-repeat; image-rendering:pixelated; }
+.quiz-page .shell { padding-top:clamp(5.5rem,10vw,7rem); padding-bottom:clamp(5rem,15vh,10rem); }
+.quiz-page .eyebrow { color:#f2a86d; text-shadow:0 2px 6px #002c3d; }
+.quiz-page h1 { overflow-wrap:anywhere; color:#fff; text-shadow:0 3px 12px rgba(0,22,31,.65); }
+.quiz-page .lead { color:#fff; text-shadow:0 2px 6px #002c3d; }
+.quiz-page .card { background:rgba(255,255,255,.97); border-color:rgba(255,255,255,.8); box-shadow:0 1.25rem 4rem rgba(0,15,25,.3); }
+.quiz-page button:focus-visible,.quiz-page input:focus-visible { outline:3px solid var(--evergreen); outline-offset:3px; }
+@media (max-width:600px) {
+  .quiz-page::before { background-image:linear-gradient(180deg,rgba(0,44,61,.16),rgba(0,44,61,0) 65%),url("christmas-pixel-mobile.webp"); background-size:cover,100% auto; background-position:center,center bottom; }
+  .quiz-page .shell { padding-top:6rem; }
+}
+
+.quiz-page .stats { grid-template-columns:repeat(3,minmax(0,1fr)); }
+.quiz-page button { min-height:48px; }
+@media (max-width:400px) {
+  .quiz-page .stats { gap:.4rem; }
+  .quiz-page .stats article { padding:.7rem .3rem; }
+  .quiz-page .stats span { font-size:.75rem; }
+}
