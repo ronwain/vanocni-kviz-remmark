@@ -25,7 +25,13 @@ input { width:100%; padding:.8rem .9rem; border:1px solid var(--line); border-ra
 form { display:grid; gap:1rem; max-width:32rem; }
 .admin-grid { display:grid; grid-template-columns:1fr; gap:2rem; }.admin-grid h2 { color:var(--evergreen); margin:0 0 .8rem; }
 .player-list { display:grid; gap:.75rem; }.player { padding:1rem; border:1px solid var(--line); border-radius:.75rem; background:#fff; }.player strong,.player code { display:block; }.player code { margin-top:.35rem; overflow-wrap:anywhere; font-size:.78rem; }
-.station-links { display:grid; gap:.6rem; }.station-links a { color:var(--wine); overflow-wrap:anywhere; }
+.station-section { margin:1.5rem 0 2rem; }
+.station-section h2 { color:var(--evergreen); margin:0 0 .8rem; }
+.station-links { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,12rem),1fr)); gap:.75rem; }
+.station-qr { display:grid; justify-items:center; align-content:start; gap:.5rem; padding:1rem; border:1px solid var(--line); border-radius:.75rem; background:#fff; text-align:center; }
+.station-qr h3 { margin:0; color:var(--evergreen); font-size:1rem; }
+.station-qr img { display:block; max-width:100%; height:auto; }
+.station-qr a { color:var(--wine); overflow-wrap:anywhere; }
 .muted { color:var(--muted); }.player-actions { display:flex; flex-wrap:wrap; gap:.5rem; margin-top:.6rem; }.copy,.delete { font-size:.85rem; padding:.45rem .7rem; }.delete { color:#c7434e; background:#fff2f3; border-color:#f1b9bf; }
 .dashboard-link { display:inline-block; text-align:center; }.stats { display:grid; grid-template-columns:repeat(2,1fr); gap:.7rem; }.stats article { padding:.85rem; border-radius:.75rem; background:#e8f1f3; text-align:center; }.stats strong,.stats span { display:block; }.stats strong { color:var(--wine); font-size:1.45rem; }.stats span { color:var(--muted); font-size:.8rem; }.leaderboard-wrap { margin-top:1.2rem; overflow-x:auto; border:1px solid var(--line); border-radius:.75rem; background:#fff; }.leaderboard-table { width:100%; min-width:43rem; border-collapse:collapse; }.leaderboard-table th,.leaderboard-table td { padding:.75rem .65rem; border-bottom:1px solid var(--line); text-align:center; white-space:nowrap; }.leaderboard-table thead th { background:var(--evergreen); color:#fff; font-size:.78rem; }.leaderboard-table tbody th { text-align:left; }.leaderboard-table tbody tr:last-child th,.leaderboard-table tbody tr:last-child td { border-bottom:0; }.rank { color:var(--wine); font-weight:800; }
 @media (min-width:760px) { .admin-grid { grid-template-columns: .8fr 1.2fr; } }
