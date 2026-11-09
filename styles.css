@@ -51,6 +51,23 @@ form { display:grid; gap:1rem; max-width:32rem; }
   .quiz-page .shell { padding-top:6rem; }
 }
 
+/* On station screens, the scenery follows the content instead of the viewport. */
+.quiz-page.quiz-station::before {
+  position:absolute;
+  inset:auto 0 0;
+  width:100%;
+  max-height:100%;
+  aspect-ratio:3 / 2;
+  background:linear-gradient(var(--evergreen),transparent 25%),url("christmas-pixel.webp") center bottom / 100% auto no-repeat;
+}
+.quiz-page.quiz-station .shell { padding-bottom:clamp(8rem,23vw,15rem); }
+@media (max-width:900px) and (orientation:portrait) {
+  .quiz-page.quiz-station::before {
+    aspect-ratio:4 / 7;
+    background-image:linear-gradient(var(--evergreen),transparent 25%),url("christmas-pixel-mobile.webp");
+  }
+}
+
 .quiz-page .stats { grid-template-columns:repeat(3,minmax(0,1fr)); }
 .quiz-page button { min-height:48px; }
 @media (max-width:400px) {
