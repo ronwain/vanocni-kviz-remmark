@@ -75,6 +75,7 @@ async function boot() {
       game.innerHTML = '<p class="notice">Otázky pro toto stanoviště ještě nejsou vložené.</p>';
       return;
     }
+    document.body.classList.add('quiz-station');
     showQuestion(questions, 0);
   } catch (error) {
     game.innerHTML = `<p class="error">${escapeHtml(error.message)}</p>`;
