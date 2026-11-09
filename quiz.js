@@ -58,9 +58,27 @@ async function boot() {
     game.innerHTML = `${progressStats(progress)}<p class="notice">Hledej QR kód s otázkami. Načti ho tlačítkem přímo tady ve hře.</p><button type="button" class="primary" data-scan-mode="station">Načíst QR stanoviště</button>`;
     return;
   }
-  if (station === 'stanoviste-4') { showNumericGuess(); return; }
-  heading.textContent = 'Stanoviště';
-  try { const questions = await rpc('get_station_questions', { p_qr_token: playerToken, p_station_slug: station }); if (!questions.length) { game.innerHTML = '<p class="notice">Otázky pro toto stanoviště ještě nejsou vložené.</p>'; return; } showQuestion(questions, 0); } catch (error) { game.innerHTML = `<p class="error">${escapeHtml(error.message)}</p>`; }
+  const stationTitles = new Map([
+    ['stanoviste-1', 'Stanoviště koled aneb nesem vám otázky'],
+    ['stanoviste-2', 'Stanoviště Ježíška a tradic aneb Ježíšku, panáčku, dej nám otázečku'],
+    ['stanoviste-3', 'Stanoviště stromů aneb Půjdem spolu mezi smrčky, máme pro vás otázečky'],
+    ['stanoviste-4', 'Stanoviště sněhu aneb Narodil se Kristus Pán, pět otázek sněží k vám'],
+  ]);
+  try {
+    const questions = await rpc('get_station_questions', { p_qr_token: playerToken, p_station_slug: station });
+    if (!questions.length && station === 'stanoviste-4') {
+      showNumericGuess();
+      return;
+    }
+    heading.textContent = stationTitles.get(station) ?? 'Stanoviště';
+    if (!questions.length) {
+      game.innerHTML = '<p class="notice">Otázky pro toto stanoviště ještě nejsou vložené.</p>';
+      return;
+    }
+    showQuestion(questions, 0);
+  } catch (error) {
+    game.innerHTML = `<p class="error">${escapeHtml(error.message)}</p>`;
+  }
 }
 function showNumericGuess() {
   heading.textContent = 'Finále – číselný tip'; description.textContent = 'Tipni si a získej až tři body.';
