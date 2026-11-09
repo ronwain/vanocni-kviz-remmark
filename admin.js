@@ -23,10 +23,46 @@ async function renderAdmin() { const { data: { session } } = await db.auth.getSe
       <a href="${qrFile}" download="vanocni-kviz-${slug}-qr.svg" aria-label="Stáhnout QR kód pro stanoviště ${label}">Stáhnout QR kód</a>
     </article>`;
   }).join('');
-  root.innerHTML = `<p><a class="button primary dashboard-link" href="tabule.html" target="_blank" rel="noopener">Tabule s výsledky</a></p><section class="notice" aria-labelledby="entry-page-title"><h2 id="entry-page-title">Vstupní stránka pro hráče</h2><p>Společný QR kód otevře uvítání a pravidla hry. Osobní přihlášení hráčů probíhá jejich vlastními QR kódy.</p><img src="vstup-qr.png" width="180" height="180" alt="QR kód na společnou vstupní stránku hry" style="display:block;max-width:100%;height:auto;background:white;padding:.5rem"><p><a href="${baseUrl}vstup.html" target="_blank" rel="noopener">Otevřít vstupní stránku</a> · <a href="vstup-qr.png" download="vanocni-kviz-vstup-qr.png">Stáhnout QR kód pro tisk</a></p><code style="overflow-wrap:anywhere">${escapeHtml(baseUrl)}vstup.html</code></section><section class="station-section" aria-labelledby="station-title"><h2 id="station-title">Stanoviště</h2><div class="station-links">${stationCards}</div></section><div class="admin-grid"><section><h2>Přidat hráče</h2><form id="add-player"><label>Přezdívka<input name="nickname" required maxlength="40" placeholder="např. Sněhulák 7"></label><button class="primary">Vytvořit osobní adresu</button></form><p id="result"></p></section><section><h2>Hráči a jejich osobní adresy</h2><div id="players" class="player-list"><p class="muted">Načítám…</p></div></section></div>`;
+  root.innerHTML = `<p><a class="button primary dashboard-link" href="tabule.html" target="_blank" rel="noopener">Tabule s výsledky</a></p><section class="notice" aria-labelledby="entry-page-title"><h2 id="entry-page-title">Vstupní stránka pro hráče</h2><p>Společný QR kód otevře uvítání a pravidla hry. Hráči se přihlásí osobním QR kódem nebo přezdívkou a čtyřmístným kódem.</p><img src="vstup-qr.png" width="180" height="180" alt="QR kód na společnou vstupní stránku hry" style="display:block;max-width:100%;height:auto;background:white;padding:.5rem"><p><a href="${baseUrl}vstup.html" target="_blank" rel="noopener">Otevřít vstupní stránku</a> · <a href="vstup-qr.png" download="vanocni-kviz-vstup-qr.png">Stáhnout QR kód pro tisk</a></p><code style="overflow-wrap:anywhere">${escapeHtml(baseUrl)}vstup.html</code></section><section class="station-section" aria-labelledby="station-title"><h2 id="station-title">Stanoviště</h2><div class="station-links">${stationCards}</div></section><div class="admin-grid"><section><h2>Přidat hráče</h2><form id="add-player"><label>Přezdívka<input name="nickname" required maxlength="40" placeholder="např. Sněhulák 7"></label><button class="primary">Vytvořit osobní adresu</button></form><p id="result"></p></section><section><h2>Hráči a jejich osobní adresy</h2><div id="players" class="player-list"><p class="muted">Načítám…</p></div></section></div>`;
   document.querySelector('#add-player').addEventListener('submit', createPlayer); await loadPlayers(); }
 async function createPlayer(event) { event.preventDefault(); const form = event.currentTarget; const nickname = new FormData(form).get('nickname').trim(); const result = document.querySelector('#result'); const button = form.querySelector('button'); button.disabled = true; try { const data = await rpc('admin_create_participant', { p_nickname: nickname }); const player = data[0]; const url = `${baseUrl}index.html?player=${player.qr_token}`; result.className = 'success'; result.innerHTML = `Hotovo: <code>${escapeHtml(url)}</code>`; form.reset(); await loadPlayers(); } catch (error) { result.className = 'error'; result.textContent = error.message; } finally { button.disabled = false; } }
 async function deletePlayer(id, nickname) { if (!confirm(`Opravdu chcete smazat hráče „${nickname}“ včetně jeho odpovědí?`)) return; try { await rpc('admin_delete_participant', { p_participant_id: id }); await loadPlayers(); } catch (error) { alert(error.message); } }
-async function loadPlayers() { const holder = document.querySelector('#players'); try { const players = await rpc('admin_list_participants'); const leaderboard = [...players].sort((a, b) => b.points - a.points || b.answered - a.answered || a.nickname.localeCompare(b.nickname, 'cs')); holder.innerHTML = players.length ? players.map(player => { const url = `${baseUrl}index.html?player=${player.qr_token}`; const rank = leaderboard.findIndex(item => item.id === player.id) + 1; return `<article class="player"><span class="rank">${rank}.</span><strong>${escapeHtml(player.nickname)}</strong><span class="muted">${player.points} bodů · ${player.answered} odpovědí</span><code>${escapeHtml(url)}</code><div class="player-actions"><button class="copy" data-copy="${escapeHtml(url)}">Kopírovat adresu</button><button class="delete" data-delete-id="${player.id}" data-delete-nickname="${escapeHtml(player.nickname)}">Smazat</button></div></article>`; }).join('') : '<p class="muted">Zatím žádní hráči.</p>'; holder.querySelectorAll('[data-copy]').forEach(button => button.addEventListener('click', async () => { await navigator.clipboard.writeText(button.dataset.copy); button.textContent = 'Zkopírováno'; setTimeout(() => button.textContent = 'Kopírovat adresu', 1400); })); holder.querySelectorAll('[data-delete-id]').forEach(button => button.addEventListener('click', () => deletePlayer(button.dataset.deleteId, button.dataset.deleteNickname))); } catch (error) { holder.innerHTML = `<p class="error">${escapeHtml(error.message)}</p>`; } }
+async function loadPlayers() {
+  const holder = document.querySelector('#players');
+  try {
+    const [players, codes] = await Promise.all([
+      rpc('admin_list_participants'),
+      rpc('admin_list_player_codes').catch(() => null),
+    ]);
+    const codesByPlayer = new Map((codes ?? []).map(player => [player.id, player.login_code]));
+    const leaderboard = [...players].sort((a, b) => b.points - a.points || b.answered - a.answered || a.nickname.localeCompare(b.nickname, 'cs'));
+    const cards = players.map(player => {
+      const url = `${baseUrl}index.html?player=${player.qr_token}`;
+      const rank = leaderboard.findIndex(item => item.id === player.id) + 1;
+      const code = codesByPlayer.get(player.id);
+      return `<article class="player">
+        <span class="rank">${rank}.</span>
+        <strong>${escapeHtml(player.nickname)}</strong>
+        ${code ? `<span>Hráčský kód <b>${escapeHtml(code)}</b></span>` : ''}
+        <span class="muted">${player.points} bodů · ${player.answered} odpovědí</span>
+        <code>${escapeHtml(url)}</code>
+        <div class="player-actions">
+          <button class="copy" data-copy="${escapeHtml(url)}">Kopírovat adresu</button>
+          <button class="delete" data-delete-id="${player.id}" data-delete-nickname="${escapeHtml(player.nickname)}">Smazat</button>
+        </div>
+      </article>`;
+    }).join('');
+    const codeError = codes === null ? '<p class="error">Číselné kódy se nepodařilo načíst.</p>' : '';
+    holder.innerHTML = codeError + (cards || '<p class="muted">Zatím žádní hráči.</p>');
+    holder.querySelectorAll('[data-copy]').forEach(button => button.addEventListener('click', async () => {
+      await navigator.clipboard.writeText(button.dataset.copy);
+      button.textContent = 'Zkopírováno';
+      setTimeout(() => button.textContent = 'Kopírovat adresu', 1400);
+    }));
+    holder.querySelectorAll('[data-delete-id]').forEach(button => button.addEventListener('click', () => deletePlayer(button.dataset.deleteId, button.dataset.deleteNickname)));
+  } catch (error) {
+    holder.innerHTML = `<p class="error">${escapeHtml(error.message)}</p>`;
+  }
+}
 db.auth.onAuthStateChange(() => renderAdmin());
 renderAdmin();

@@ -50,12 +50,17 @@ function showPlayerLogin(message = '') {
   heading.textContent = 'Zadej hráčský kód';
   description.textContent = station
     ? 'Stanoviště máš načtené. Přihlas se svým osobním hráčským kódem a otevřou se ti otázky.'
-    : 'Zadej kód nebo vlož osobní odkaz, který jsi dostal od organizátora.';
+    : 'Zadej čtyřmístný kód nebo vlož osobní odkaz od organizátora.';
   game.innerHTML = `
     <form id="player-login">
       <label>Hráčský kód nebo osobní odkaz
         <input name="player-code" type="text" required autocomplete="off" autocapitalize="none" spellcheck="false" aria-describedby="player-login-message">
       </label>
+      <div id="player-nickname-field" hidden>
+        <label>Přezdívka k číselnému kódu
+          <input name="player-nickname" type="text" autocomplete="off" autocapitalize="none" spellcheck="false">
+        </label>
+      </div>
       <p id="player-login-message" class="error" role="status" style="margin:0">${escapeHtml(message)}</p>
       <button type="submit" class="primary">Přihlásit se</button>
       <button type="button" data-scan-mode="player">Načíst osobní QR</button>
@@ -63,13 +68,51 @@ function showPlayerLogin(message = '') {
   const form = game.querySelector('#player-login');
   const input = form.elements.namedItem('player-code');
   const status = form.querySelector('#player-login-message');
-  form.addEventListener('submit', event => {
+  const nicknameField = form.querySelector('#player-nickname-field');
+  const nickname = form.elements.namedItem('player-nickname');
+  const submit = form.querySelector('button[type="submit"]');
+  const isPin = value => /^[0-9]{4}$/.test(value);
+  const showNickname = () => {
+    nicknameField.hidden = !isPin(input.value.trim());
+    nickname.required = !nicknameField.hidden;
+  };
+  input.addEventListener('input', showNickname);
+  showNickname();
+  form.addEventListener('submit', async event => {
     event.preventDefault();
+    if (submit.disabled) return;
+    const code = input.value.trim();
+    if (isPin(code)) {
+      showNickname();
+      const playerNickname = nickname.value.trim();
+      if (!playerNickname) {
+        status.textContent = 'K číselnému kódu zadej svoji přezdívku.';
+        nickname.focus();
+        return;
+      }
+      submit.disabled = true;
+      status.textContent = '';
+      try {
+        const [result] = await rpc('redeem_player_code', {
+          p_nickname: playerNickname,
+          p_code: code,
+          p_device_id: deviceId,
+        });
+        if (result?.qr_token) location.replace(parseQuizQr(result.qr_token, 'player'));
+        else status.textContent = result?.message || 'Přihlášení se nepodařilo.';
+      } catch (error) {
+        status.textContent = error.message || 'Přihlášení se nepodařilo. Zkus to znovu.';
+      } finally {
+        submit.disabled = false;
+      }
+      return;
+    }
+
     let target;
     try {
-      target = parseQuizQr(input.value.trim(), 'player');
+      target = parseQuizQr(code, 'player');
     } catch {
-      status.textContent = 'Vlož svůj osobní hráčský kód nebo celý osobní odkaz ke kvízu.';
+      status.textContent = 'Zadej čtyřmístný hráčský kód nebo vlož celý osobní odkaz ke kvízu.';
       input.focus();
       return;
     }
