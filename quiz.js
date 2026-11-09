@@ -45,11 +45,49 @@ async function getCompletedProgress() {
   return null;
 }
 async function activatePlayer() { const player = await rpc('activate_player', { p_qr_token: playerToken, p_device_id: deviceId }); if (tokenFromUrl) writeStorage('vanocni-player-token', tokenFromUrl); return player; }
+function showPlayerLogin(message = '') {
+  scoreValue.closest('.score-counter').hidden = true;
+  heading.textContent = 'Zadej hráčský kód';
+  description.textContent = station
+    ? 'Stanoviště máš načtené. Přihlas se svým osobním hráčským kódem a otevřou se ti otázky.'
+    : 'Zadej kód nebo vlož osobní odkaz, který jsi dostal od organizátora.';
+  game.innerHTML = `
+    <form id="player-login">
+      <label>Hráčský kód nebo osobní odkaz
+        <input name="player-code" type="text" required autocomplete="off" autocapitalize="none" spellcheck="false" aria-describedby="player-login-message">
+      </label>
+      <p id="player-login-message" class="error" role="status" style="margin:0">${escapeHtml(message)}</p>
+      <button type="submit" class="primary">Přihlásit se</button>
+      <button type="button" data-scan-mode="player">Načíst osobní QR</button>
+    </form>`;
+  const form = game.querySelector('#player-login');
+  const input = form.elements.namedItem('player-code');
+  const status = form.querySelector('#player-login-message');
+  form.addEventListener('submit', event => {
+    event.preventDefault();
+    let target;
+    try {
+      target = parseQuizQr(input.value.trim(), 'player');
+    } catch {
+      status.textContent = 'Vlož svůj osobní hráčský kód nebo celý osobní odkaz ke kvízu.';
+      input.focus();
+      return;
+    }
+    location.replace(target);
+  });
+}
 async function boot() {
   if (storageUnavailable) { scoreValue.closest('.score-counter').hidden = true; heading.textContent = 'Otevři hru v běžném prohlížeči'; description.textContent = 'Tento prohlížeč nedovoluje uložit přihlášení. Otevři osobní QR odkaz v běžném Safari nebo Chromu a povol ukládání dat webu.'; return; }
-  if (!playerToken) { scoreValue.closest('.score-counter').hidden = true; heading.textContent = 'Nejdřív osobní QR kód'; description.textContent = 'Naskenujte svůj osobní QR kód. Do tohoto telefonu se bezpečně uloží vaše přezdívka pro celé hraní.'; game.innerHTML = '<p class="notice">Otevři osobní odkaz v běžném Safari nebo Chromu. Stanoviště potom načítej tlačítkem přímo ve hře, aby přihlášení zůstalo zachované.</p><button type="button" class="primary" data-scan-mode="player">Načíst osobní QR</button>'; return; }
+  if (!playerToken) { showPlayerLogin(); return; }
   let player;
-  try { player = await activatePlayer(); await loadScore(); description.textContent = `Hraje ${player[0].nickname}.`; } catch (error) { scoreValue.closest('.score-counter').hidden = true; heading.textContent = 'Tento QR kód už není platný'; description.textContent = error.message; return; }
+  try {
+    player = await activatePlayer();
+  } catch (error) {
+    showPlayerLogin(error.message || 'Přihlášení se nepodařilo. Zkus zadat svůj hráčský kód znovu.');
+    return;
+  }
+  await loadScore();
+  description.textContent = `Hraje ${player[0].nickname}.`;
   const progress = await loadProgress();
   if (isGameComplete(progress)) { showGameComplete(progress); return; }
   if (!station) {
@@ -131,13 +169,16 @@ function showQuestion(questions, index) {
   }));
 }
 function parseQuizQr(value, mode) {
-  const url = new URL(value);
   const base = new URL('.', location.href);
-  if (url.origin !== base.origin || ![base.pathname, `${base.pathname}index.html`].includes(url.pathname) || url.username || url.password) throw new Error('Tento QR kód nepatří k tomuto kvízu.');
   const target = new URL('index.html', base);
+  const playerCode = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const url = mode === 'player' && playerCode.test(value)
+    ? new URL(`?player=${value}`, target)
+    : new URL(value);
+  if (url.origin !== base.origin || ![base.pathname, `${base.pathname}index.html`].includes(url.pathname) || url.username || url.password) throw new Error('Tento QR kód nepatří k tomuto kvízu.');
   if (mode === 'player') {
     const token = url.searchParams.get('player');
-    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(token || '')) throw new Error('Načti svůj osobní QR kód hráče, ne kód stanoviště.');
+    if (!playerCode.test(token || '')) throw new Error('Načti svůj osobní QR kód hráče, ne kód stanoviště.');
     target.searchParams.set('player', token);
     if (station) target.searchParams.set('station', station);
   } else {
