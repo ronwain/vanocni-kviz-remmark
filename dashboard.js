@@ -36,8 +36,11 @@ function fitBoard() {
   const rowHeight = row.getBoundingClientRect().height;
   if (!rowHeight) return;
   const tableTop = tableHead.getBoundingClientRect().bottom + window.scrollY;
+  const statusStyle = getComputedStyle(status);
+  const statusSpace = status.getBoundingClientRect().height
+    + parseFloat(statusStyle.marginTop) + parseFloat(statusStyle.marginBottom);
   const bottomSpace = parseFloat(getComputedStyle(root).paddingBottom)
-    + parseFloat(getComputedStyle(root.parentElement).paddingBottom) + 16;
+    + parseFloat(getComputedStyle(root.parentElement).paddingBottom) + statusSpace + 16;
   const capacity = Math.max(1, Math.floor((window.innerHeight - tableTop - bottomSpace) / (rowHeight + 1)));
   if (capacity === rowsPerScreen) return;
 
@@ -63,15 +66,15 @@ async function loadDashboard() {
     const { data: players, error } = await db.rpc('admin_list_participants').abortSignal(controller.signal);
     if (error) throw error;
     leaderboard = [...players].sort((a, b) => b.points - a.points || b.answered - a.answered || a.nickname.localeCompare(b.nickname, 'cs'));
-    fitBoard();
-
     lastUpdatedAt = clock.format(new Date());
     status.textContent = `Naposledy aktualizováno v ${lastUpdatedAt}.`;
+    fitBoard();
   } catch {
     if (!lastUpdatedAt) root.textContent = 'Výsledky se zatím nepodařilo načíst.';
     status.textContent = lastUpdatedAt
       ? `Naposledy aktualizováno v ${lastUpdatedAt}. Spojení se nezdařilo, tabule to zkusí znovu.`
       : 'Tabule se za chvíli pokusí načíst výsledky znovu.';
+    if (lastUpdatedAt) fitBoard();
   } finally {
     clearTimeout(timeout);
     loading = false;
